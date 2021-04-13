@@ -25,16 +25,15 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TotalCountMapper extends Mapper<Text, IntWritable, IntWritable, Text>{
+	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
 
-		public void map(Text key, IntWritable value, Context context) throws IOException, InterruptedException {
-			//String[] text_count_pair = value.toString().split("\t"); //No idea what value we get here ...
-			//String text = text_count_pair[0];
-			//int count = Integer.parseInt(text_count_pair[1].trim().strip());
-			//IntWritable i = new IntWritable(count);
-			//Text t = new Text(text);
-			//context.write(i, t);
-			context.write(value, key);
+		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+			String[] text_count_pair = value.toString().split(","); //No idea what value we get here ...
+			String text = text_count_pair[0];
+			int count = Integer.parseInt(text_count_pair[1].trim().strip());
+			IntWritable i = new IntWritable(count);
+			Text t = new Text(text);
+			context.write(i, t);
 		}
 	}
 
@@ -57,16 +56,15 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TextMapper extends Mapper<Object, Text, Text, IntWritable>{
+	public static class TextMapper extends Mapper<Object, Text, Text, Text>{
 
-		private final static IntWritable one = new IntWritable(1);
 		private Text word = new Text();
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 			StringTokenizer itr = new StringTokenizer(value.toString());
 			while (itr.hasMoreTokens()) {
 				word.set(itr.nextToken());
-				context.write(word, one);
+				context.write(word, new Text("1"));
 			}
 		}
 	}
@@ -76,17 +74,17 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class CountReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
+	public static class CountReducer extends Reducer<Text,IntWritable,Text,Text> {
 		
 		private IntWritable result = new IntWritable();
 
-		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
 			int sum = 0;
-			for (IntWritable val : values) {
-				sum += val.get();
+			for (Text val : values) {
+				sum += Integer.parseInt(val.toString());
 			}
 			result.set(sum);
-			context.write(key, result);
+			context.write(key, new Text(key + "," + result.toString()));
 		}
 	}
 	
@@ -150,7 +148,7 @@ public class WordCount {
 		job.setReducerClass(CountReducer.class);
 		
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(IntWritable.class);
+		job.setOutputValueClass(Text.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
