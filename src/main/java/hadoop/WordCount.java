@@ -29,14 +29,21 @@ public class WordCount {
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 			try {
-				String[] text_count_pair = value.toString().split(","); //No idea what value we get here ...
+				String splitter = ";;;";
+				if(value.toString().contains(";;;")) {
+					// Ok
+				} else {
+					splitter = ",,,";
+				}
+				
+				String[] text_count_pair = value.toString().split(splitter); //No idea what value we get here ...
 				String text = text_count_pair[0];
 				int count = Integer.parseInt(text_count_pair[1].trim().strip());
 				IntWritable i = new IntWritable(count);
 				Text t = new Text(text);
 				context.write(i, t);
 			} catch(ArrayIndexOutOfBoundsException e) {
-				throw new ArrayIndexOutOfBoundsException(value.toString());
+				throw new ArrayIndexOutOfBoundsException("[" + value.toString() + "] | " + e.toString());
 			}
 		}
 	}
@@ -88,7 +95,7 @@ public class WordCount {
 				sum += Integer.parseInt(val.toString());
 			}
 			result.set(sum);
-			context.write(key, new Text(key + "," + result.toString()));
+			context.write(new Text(key + ";;;" + result.toString()), new Text(key + ",,," + result.toString()));
 		}
 	}
 	
