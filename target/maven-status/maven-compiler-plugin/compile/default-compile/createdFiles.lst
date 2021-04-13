@@ -1,0 +1,3 @@
+main\java\hadoop\WordCount.class
+main\java\hadoop\WordCount$IntSumReducer.class
+main\java\hadoop\WordCount$TokenizerMapper.class

@@ -7,6 +7,12 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
+	<properties>
+	     <maven.compiler.source>14</maven.compiler.source>
+	     <maven.compiler.target>14</maven.compiler.target>
+	</properties>
+
+
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.hadoop</groupId>
@@ -34,7 +40,7 @@
 							<archive>
 								<manifest>
 									<mainClass>
-										hadoop.WordCount
+										main.java.hadoop.WordCount
 									</mainClass>
 								</manifest>
 							</archive>
