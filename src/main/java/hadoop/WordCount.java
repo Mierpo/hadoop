@@ -25,15 +25,16 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
+	public static class TotalCountMapper extends Mapper<Text, IntWritable, IntWritable, Text>{
 
-		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-			String[] text_count_pair = value.toString().split("\t"); //No idea what value we get here ...
-			String text = text_count_pair[0];
-			int count = Integer.parseInt(text_count_pair[1].trim().strip());
-			IntWritable i = new IntWritable(count);
-			Text t = new Text(text);
-			context.write(i, t);
+		public void map(Text key, IntWritable value, Context context) throws IOException, InterruptedException {
+			//String[] text_count_pair = value.toString().split("\t"); //No idea what value we get here ...
+			//String text = text_count_pair[0];
+			//int count = Integer.parseInt(text_count_pair[1].trim().strip());
+			//IntWritable i = new IntWritable(count);
+			//Text t = new Text(text);
+			//context.write(i, t);
+			context.write(value, key);
 		}
 	}
 
