@@ -7,9 +7,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.io.WritableComparator;
+import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -23,10 +25,10 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
+	public static class TotalCountMapper extends Mapper<Object, LongWritable, IntWritable, Text>{
 
-		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-			String[] text_count_pair = value.toString().split(",");
+		public void map(Object key, LongWritable value, Context context) throws IOException, InterruptedException {
+			String[] text_count_pair = value.toString().split(","); //No idea what value we get here ...
 			String text = text_count_pair[0];
 			int count = Integer.parseInt(text_count_pair[1].trim().strip());
 			IntWritable i = new IntWritable(count);
@@ -73,7 +75,7 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class CountReducer extends Reducer<Text,IntWritable,Text,Text> {
+	public static class CountReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
 		
 		private IntWritable result = new IntWritable();
 
@@ -83,7 +85,7 @@ public class WordCount {
 				sum += val.get();
 			}
 			result.set(sum);
-			context.write(key, new Text(key.toString() + "," + result.toString()));
+			context.write(key, result);
 		}
 	}
 	
@@ -121,7 +123,7 @@ public class WordCount {
 		job.setReducerClass(TotalCountReducer.class);
 		
 		// We should use a decreasing order, based on the count key
-		// job.setSortComparatorClass(DecreasingComparator.class);
+		job.setSortComparatorClass(DecreasingComparator.class);
 		
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
@@ -147,7 +149,7 @@ public class WordCount {
 		job.setReducerClass(CountReducer.class);
 		
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputValueClass(LongWritable.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
@@ -175,6 +177,11 @@ public class WordCount {
 			final_output = args[3];
 		}
 		
+		FileSystem fs = FileSystem.get(new Configuration());
+		fs.delete(new Path(intermediary_output), true); // Delete the intermediary output directory
+		fs.delete(new Path(final_output), true); 		// Clear the final output directory before adding data to it
+		
+		
 		Configuration conf = new Configuration();
 		
 		// Let's first run a MapReduce job that just counts the words. Key: word, Value: count
@@ -188,9 +195,6 @@ public class WordCount {
 			
 			boolean second_job_ok = sort_by_value_job.waitForCompletion(true);
 			
-			// configuration should contain reference to your namenode
-			FileSystem fs = FileSystem.get(new Configuration());
-			// true stands for recursively deleting the folder you gave
 			fs.delete(new Path(intermediary_output), true); //Delete the intermediary output directory
 			
 			System.exit(second_job_ok ? 0 : 1);
