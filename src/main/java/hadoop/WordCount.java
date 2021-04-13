@@ -29,11 +29,11 @@ public class WordCount {
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 			try {
-				String splitter = ";;;";
-				if(value.toString().contains(";;;")) {
+				String splitter = "\t";
+				if(value.toString().contains("\t")) {
 					// Ok
 				} else {
-					splitter = ",,,";
+					splitter = ",";
 				}
 				
 				String[] text_count_pair = value.toString().split(splitter); //No idea what value we get here ...
@@ -95,7 +95,8 @@ public class WordCount {
 				sum += Integer.parseInt(val.toString());
 			}
 			result.set(sum);
-			context.write(new Text(key + ";;;" + result.toString()), new Text(key + ",,," + result.toString()));
+			context.write(key, new Text(result.toString()));
+			//context.write(new Text(key + ";;;" + result.toString()), new Text(key + ",,," + result.toString()));
 		}
 	}
 	
