@@ -216,7 +216,7 @@ public class WordCount {
 			
 			boolean second_job_ok = sort_by_value_job.waitForCompletion(true);
 			
-			fs.delete(new Path(intermediary_output), true); //Delete the intermediary output directory
+			//fs.delete(new Path(intermediary_output), true); //Delete the intermediary output directory
 			
 			System.exit(second_job_ok ? 0 : 1);
 		} else {
