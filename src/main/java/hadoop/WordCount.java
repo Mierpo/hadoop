@@ -26,7 +26,7 @@ public class WordCount {
 	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-			String[] text_count_pair = value.toString().split("\t");
+			String[] text_count_pair = value.toString().split(",");
 			String text = text_count_pair[0];
 			int count = Integer.parseInt(text_count_pair[1].trim().strip());
 			IntWritable i = new IntWritable(count);
@@ -73,7 +73,7 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class CountReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
+	public static class CountReducer extends Reducer<Text,IntWritable,Text,Text> {
 		
 		private IntWritable result = new IntWritable();
 
@@ -83,10 +83,15 @@ public class WordCount {
 				sum += val.get();
 			}
 			result.set(sum);
-			context.write(key, result);
+			context.write(key, new Text(key.toString() + "," + result.toString()));
 		}
 	}
 	
+	/**
+	 * Takes as input the TotalCountMapper's (IntWritable:Text) tuples and sorts by the key IntWritable
+	 * @author MiroEklund
+	 *
+	 */
 	public static class DecreasingComparator extends WritableComparator {
 		
 	    protected DecreasingComparator() {
@@ -116,7 +121,7 @@ public class WordCount {
 		job.setReducerClass(TotalCountReducer.class);
 		
 		// We should use a decreasing order, based on the count key
-		job.setSortComparatorClass(DecreasingComparator.class);
+		// job.setSortComparatorClass(DecreasingComparator.class);
 		
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
@@ -142,7 +147,7 @@ public class WordCount {
 		job.setReducerClass(CountReducer.class);
 		
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(IntWritable.class);
+		job.setOutputValueClass(Text.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
