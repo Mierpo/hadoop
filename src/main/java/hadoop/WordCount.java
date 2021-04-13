@@ -63,11 +63,11 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TotalCountReducer extends Reducer<IntWritable,Text,Text,IntWritable> {
+	public static class TotalCountReducer extends Reducer<IntWritable,Text,IntWritable,Text> {
 		
 		public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
 			for(Text t : values) {
-				context.write(t, key);
+				context.write(key, t);
 			}
 		}
 	}
@@ -146,8 +146,8 @@ public class WordCount {
 		// We should use a decreasing order, based on the count key
 		job.setSortComparatorClass(DecreasingComparator.class);
 		
-		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(IntWritable.class);
+		job.setOutputKeyClass(IntWritable.class);
+		job.setOutputValueClass(Text.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
