@@ -44,6 +44,8 @@ public class WordCount {
 				context.write(i, t);
 			} catch(ArrayIndexOutOfBoundsException e) {
 				throw new ArrayIndexOutOfBoundsException("[" + value.toString() + "] | " + e.toString());
+			} catch(java.io.IOException e) {
+				throw new IOException("[" + value + "] | " + e.toString());
 			}
 		}
 	}
