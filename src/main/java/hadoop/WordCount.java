@@ -99,10 +99,10 @@ public class WordCount {
 		
 		private IntWritable result = new IntWritable();
 
-		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
 			int sum = 0;
-			for (Text val : values) {
-				sum += Integer.parseInt(val.toString());
+			for (IntWritable val : values) {
+				sum += val.get();
 			}
 			result.set(sum);
 			context.write(key, new Text(result.toString()));
