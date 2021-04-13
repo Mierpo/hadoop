@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.util.StringTokenizer;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.io.WritableComparator;
@@ -23,10 +23,15 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TotalCountMapper extends Mapper<Text, IntWritable, IntWritable, Text>{
+	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
 
-		public void map(Text key, IntWritable value, Context context) throws IOException, InterruptedException {
-			context.write(value, key);
+		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+			String[] text_count_pair = value.toString().split("\t");
+			String text = text_count_pair[0];
+			int count = Integer.parseInt(text_count_pair[1].trim().strip());
+			IntWritable i = new IntWritable(count);
+			Text t = new Text(text);
+			context.write(i, t);
 		}
 	}
 
@@ -113,9 +118,8 @@ public class WordCount {
 		// We should use a decreasing order, based on the count key
 		job.setSortComparatorClass(DecreasingComparator.class);
 		
-		// Swapped order compared to wordCountJob!
-		job.setOutputKeyClass(IntWritable.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputKeyClass(Text.class);
+		job.setOutputValueClass(IntWritable.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
@@ -153,31 +157,36 @@ public class WordCount {
 	 */
 	public static void main(String[] args) throws Exception {
 		String input;
-		String output;
-		String output2;
+		String intermediary_output;
+		String final_output;
 		
 		if(args.length == 3) {
 			input = args[0];
-			output = args[1];
-			output2 = args[2];
+			intermediary_output = args[1];
+			final_output = args[2];
 		} else {
 			input = args[1];
-			output = args[2];
-			output2 = args[3];
+			intermediary_output = args[2];
+			final_output = args[3];
 		}
 		
 		Configuration conf = new Configuration();
 		
 		// Let's first run a MapReduce job that just counts the words. Key: word, Value: count
-		Job word_count_job = createWordCountJob(conf, input, output);
+		Job word_count_job = createWordCountJob(conf, input, intermediary_output);
 		
 		boolean first_job_ok = word_count_job.waitForCompletion(true);
 		if(first_job_ok) {
 			
 			// Let's then run another job that sorts the values in descending order by their values
-			Job sort_by_value_job = createSortByValueJob(conf, output, output2);
+			Job sort_by_value_job = createSortByValueJob(conf, intermediary_output, final_output);
 			
 			boolean second_job_ok = sort_by_value_job.waitForCompletion(true);
+			
+			// configuration should contain reference to your namenode
+			FileSystem fs = FileSystem.get(new Configuration());
+			// true stands for recursively deleting the folder you gave
+			fs.delete(new Path(intermediary_output), true); //Delete the intermediary output directory
 			
 			System.exit(second_job_ok ? 0 : 1);
 		} else {
