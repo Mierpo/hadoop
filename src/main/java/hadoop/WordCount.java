@@ -36,9 +36,7 @@ public class WordCount {
 				Text t = new Text(text);
 				context.write(i, t);
 			} catch(ArrayIndexOutOfBoundsException e) {
-				System.out.println(value);
-				System.err.println(e);
-				throw e;
+				throw new ArrayIndexOutOfBoundsException(value.toString());
 			}
 		}
 	}
