@@ -28,6 +28,7 @@ public class WordCount {
 	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+			String info = "";
 			try {
 				String splitter = "\t";
 				if(value.toString().contains("\t")) {
@@ -36,16 +37,23 @@ public class WordCount {
 					splitter = ",";
 				}
 				
+				info += "splitter: " + splitter + ", ";
+				
 				String[] text_count_pair = value.toString().split(splitter); //No idea what value we get here ...
+				
+				info += "size: " + text_count_pair.length + ", ";
+				
 				String text = text_count_pair[0];
 				int count = Integer.parseInt(text_count_pair[1].trim().strip());
 				IntWritable i = new IntWritable(count);
 				Text t = new Text(text);
+				
+				info += "i: " + i + ", t: " + t.toString();
 				context.write(i, t);
 			} catch(ArrayIndexOutOfBoundsException e) {
-				throw new ArrayIndexOutOfBoundsException("[" + value.toString() + "] | " + e.toString());
+				throw new ArrayIndexOutOfBoundsException("[" + value.toString() + "] | " + info + " | " + e.toString());
 			} catch(java.io.IOException e) {
-				throw new IOException("[" + value + "] | " + e.toString());
+				throw new IOException("[" + value + "] | " + info + " | " + e.toString());
 			}
 		}
 	}
