@@ -25,9 +25,9 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TotalCountMapper extends Mapper<Object, LongWritable, IntWritable, Text>{
+	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
 
-		public void map(Object key, LongWritable value, Context context) throws IOException, InterruptedException {
+		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 			String[] text_count_pair = value.toString().split(","); //No idea what value we get here ...
 			String text = text_count_pair[0];
 			int count = Integer.parseInt(text_count_pair[1].trim().strip());
@@ -75,7 +75,7 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class CountReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
+	public static class CountReducer extends Reducer<Text,IntWritable,Text,Text> {
 		
 		private IntWritable result = new IntWritable();
 
@@ -85,7 +85,7 @@ public class WordCount {
 				sum += val.get();
 			}
 			result.set(sum);
-			context.write(key, result);
+			context.write(key, new Text(key + "," + result.toString()));
 		}
 	}
 	
@@ -149,7 +149,7 @@ public class WordCount {
 		job.setReducerClass(CountReducer.class);
 		
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(LongWritable.class);
+		job.setOutputValueClass(Text.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
