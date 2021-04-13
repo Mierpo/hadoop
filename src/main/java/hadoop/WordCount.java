@@ -77,7 +77,7 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class TextMapper extends Mapper<Object, Text, Text, Text>{
+	public static class TextMapper extends Mapper<Object, Text, Text, IntWritable>{
 
 		private Text word = new Text();
 
@@ -85,7 +85,7 @@ public class WordCount {
 			StringTokenizer itr = new StringTokenizer(value.toString());
 			while (itr.hasMoreTokens()) {
 				word.set(itr.nextToken());
-				context.write(word, new Text("1"));
+				context.write(word, new IntWritable(1));
 			}
 		}
 	}
