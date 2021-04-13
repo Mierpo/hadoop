@@ -95,7 +95,7 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class CountReducer extends Reducer<Text,IntWritable,Text,Text> {
+	public static class CountReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
 		
 		private IntWritable result = new IntWritable();
 
@@ -105,8 +105,7 @@ public class WordCount {
 				sum += val.get();
 			}
 			result.set(sum);
-			context.write(key, new Text(result.toString()));
-			//context.write(new Text(key + ";;;" + result.toString()), new Text(key + ",,," + result.toString()));
+			context.write(key, result);
 		}
 	}
 	
@@ -170,7 +169,7 @@ public class WordCount {
 		job.setReducerClass(CountReducer.class);
 		
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputValueClass(IntWritable.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
