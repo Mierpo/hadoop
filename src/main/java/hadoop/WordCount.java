@@ -7,6 +7,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.io.WritableComparator;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -33,9 +35,7 @@ public class WordCount {
 		
 		private IntWritable result = new IntWritable();
 
-		public void reduce(Text key, Iterable<IntWritable> values,
-				Context context
-				) throws IOException, InterruptedException {
+		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
 			int sum = 0;
 			for (IntWritable val : values) {
 				sum += val.get();
@@ -45,15 +45,39 @@ public class WordCount {
 		}
 	}
 
+	public static class OccurenceComparator extends WritableComparator {
+		
+	    protected OccurenceComparator() {
+	        super(IntWritable.class, true);
+	    }
+	    
+	    @SuppressWarnings("rawtypes")
+	    @Override
+	    public int compare(WritableComparable w1, WritableComparable w2) {
+	    	IntWritable k1 = (IntWritable)w1;
+	    	IntWritable k2 = (IntWritable)w2;
+	        return k1.compareTo(k2);
+	    }
+		
+	}
+	
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
+		
 		Job job = Job.getInstance(conf, "word count");
 		job.setJarByClass(WordCount.class);
+		
+		// Possibly sorts by value instead of text:
+		job.setGroupingComparatorClass(OccurenceComparator.class);
+		
 		job.setMapperClass(TokenizerMapper.class);
-		job.setCombinerClass(IntSumReducer.class);
+		
+		//job.setCombinerClass(IntSumReducer.class);
 		job.setReducerClass(IntSumReducer.class);
+		
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
+		
 		if(args.length == 2) {
 			FileInputFormat.addInputPath(job, new Path(args[0]));
 			FileOutputFormat.setOutputPath(job, new Path(args[1]));
