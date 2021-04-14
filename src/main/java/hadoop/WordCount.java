@@ -290,7 +290,7 @@ public class WordCount {
 		String intermediary_output_2;
 		String final_output;
 		
-		if(args.length == 3) {
+		if(args.length == 2) {
 			input = args[0];
 			final_output = args[1];
 			intermediary_output_1 = final_output + "_temp1";
@@ -330,8 +330,6 @@ public class WordCount {
 			
 			int limit = findLimit(fs, intermediary_output_2);
 			conf.set("limit", "" + limit);
-			
-			//TODO: Create a MapReduce job that only gives top 100 words as result to "final_output"
 			
 			Job filter_top_100 = createFilterTop100(conf, intermediary_output_2, final_output);
 			
