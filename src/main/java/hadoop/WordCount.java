@@ -7,6 +7,7 @@ import java.util.StringTokenizer;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
@@ -250,7 +251,40 @@ public class WordCount {
 	}
 	
 	private static int findLimit(FileSystem fs, String hdfs_directory) throws IllegalArgumentException, IOException {
+		FileStatus[] status = fs.listStatus(new Path(hdfs_directory));
+		
+		int count = 0;
+		for(FileStatus s : status) {
+			Path file_path = s.getPath();
+			FSDataInputStream fsDataInputStream = fs.open(file_path);
+			BufferedReader br = null;
+			
+			try {
+				br = new BufferedReader(new InputStreamReader(fsDataInputStream));
+			    
+				String l = null;
+			    while((l = br.readLine())!= null){
+			    	count++;
+			    	if(count == 100) {
+			    		//Format: 100\tText
+			    		String[] values = l.split("\t");
+			    		String word_count = values[0];
+			    		return Integer.parseInt(word_count); // We found our answer
+			    	}
+			    }
+			} finally {
+				fsDataInputStream.close();
+				if(br != null) {
+					br.close();
+				}
+			}
+		}
+		
+		
+		/*
 		FSDataInputStream fsDataInputStream = fs.open(new Path(hdfs_directory));
+		
+		//TODO: We have a directory, now we need to loop all files
 		
 		BufferedReader br = null;
 		
@@ -275,6 +309,7 @@ public class WordCount {
 				br.close();
 			}
 		}
+		*/
 		
 		return 0;
 	}
