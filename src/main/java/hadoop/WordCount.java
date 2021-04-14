@@ -249,6 +249,9 @@ public class WordCount {
 		job.setJarByClass(WordCount.class);
 		job.setMapperClass(FilterTop100Mapper.class);
 		
+		// We should use a decreasing order, based on the count key
+		job.setSortComparatorClass(DecreasingComparator.class);
+		
 		job.setOutputKeyClass(IntWritable.class);
 		job.setOutputValueClass(Text.class);
 		
