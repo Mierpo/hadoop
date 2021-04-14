@@ -3,12 +3,14 @@ package main.java.hadoop;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.StringTokenizer;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
@@ -58,7 +60,7 @@ public class WordCount {
 				info += "size: " + text_count_pair.length + ", ";
 				
 				String text = text_count_pair[1];
-				int count = Integer.parseInt(text_count_pair[0].trim().strip());
+				int count = Integer.parseInt(text_count_pair[0]);
 				IntWritable i = new IntWritable(count);
 				Text t = new Text(text);
 				
@@ -86,11 +88,14 @@ public class WordCount {
 	 */
 	public static class TotalCountMapper extends Mapper<Object, Text, IntWritable, Text>{
 
-		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+		public void map(Object key, Text input, Context context) throws IOException, InterruptedException {
 			String info = "";
+			String value = input.toString();
+			
 			try {
 				String splitter = "\t";
-				if(value.toString().contains("\t")) {
+				
+				if(value.contains("\t")) {
 					// Ok
 				} else {
 					splitter = ",";
@@ -98,35 +103,23 @@ public class WordCount {
 				
 				info += "splitter: " + splitter + ", ";
 				
-				String[] text_count_pair = value.toString().split(splitter); //No idea what value we get here ...
+				String[] text_count_pair = value.split(splitter); //No idea what value we get here ...
 				
 				info += "size: " + text_count_pair.length + ", ";
 				
 				String text = text_count_pair[0];
-				int count = Integer.parseInt(text_count_pair[1].trim().strip());
+				int count = Integer.parseInt(text_count_pair[1]);
 				IntWritable i = new IntWritable(count);
 				Text t = new Text(text);
 				
 				info += "i: " + i + ", t: " + t.toString();
 				context.write(i, t);
 			} catch(ArrayIndexOutOfBoundsException e) {
-				throw new ArrayIndexOutOfBoundsException("[" + value.toString() + "] | " + info + " | " + e.toString());
+				throw new ArrayIndexOutOfBoundsException("[" + value + "] | " + info + " | " + e.toString());
 			} catch(java.io.IOException e) {
 				throw new IOException("[" + value + "] | " + info + " | " + e.toString());
-			}
-		}
-	}
-
-	/**
-	 * Changes (TextCountPair:value) -> (Text:IntWritable), but uses TextCountPair for sorting
-	 * @author MiroEklund
-	 *
-	 */
-	public static class TotalCountReducer extends Reducer<IntWritable,Text,IntWritable,Text> {
-		
-		public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-			for(Text t : values) {
-				context.write(key, t);
+			} catch(Throwable e) {
+				throw new InterruptedException("[" + value + "] | " + info + " | " + e.toString());
 			}
 		}
 	}
@@ -143,7 +136,7 @@ public class WordCount {
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 			StringTokenizer itr = new StringTokenizer(value.toString());
 			while (itr.hasMoreTokens()) {
-				word.set(itr.nextToken());
+				word.set(itr.nextToken().toLowerCase());
 				context.write(word, new IntWritable(1));
 			}
 		}
@@ -199,14 +192,13 @@ public class WordCount {
 		Job job = Job.getInstance(conf, "sort by count");
 		job.setJarByClass(WordCount.class);
 		job.setMapperClass(TotalCountMapper.class);
-		job.setReducerClass(TotalCountReducer.class);
+		//job.setReducerClass(TotalCountReducer.class);
 		
 		// We should use a decreasing order, based on the count key
 		job.setSortComparatorClass(DecreasingComparator.class);
 		
 		//TODO: Add combiner - each mapper has its own combiner, which is called after the mapper function, but before the reducer
 		//TODO: Use Reducer as the combiner here ? Maybe not
-		//TODO: Possibly add a Partitioner?
 		
 		job.setOutputKeyClass(IntWritable.class);
 		job.setOutputValueClass(Text.class);
@@ -230,10 +222,10 @@ public class WordCount {
 		job.setJarByClass(WordCount.class);
 		job.setMapperClass(TextMapper.class);
 		job.setReducerClass(CountReducer.class);
+		job.setCombinerClass(CountReducer.class); //This is the only line that changed between "Application 1 and 2"
 		
 		//TODO: Add combiner - each mapper has its own combiner, which is called after the mapper function, but before the reducer
 		//TODO: Use Reducer as the combiner here -> pre-calculated occurances of specific word by summing the count, just like the Reducer does.
-		//TODO: Possibly add a Partitioner?
 		
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
@@ -261,13 +253,22 @@ public class WordCount {
 		return job;
 	}
 	
-	private static int findLimit(FileSystem fs, String hdfs_directory) throws IllegalArgumentException, IOException {
-		FileStatus[] status = fs.listStatus(new Path(hdfs_directory));
+	private static int findLimit(Configuration conf, String hdfs_directory) throws IllegalArgumentException, IOException {
+		FileStatus[] status = new FileStatus[0];
+		Path p;
+		try {
+			p = new Path(hdfs_directory);
+			status = p.getFileSystem(conf).listStatus(p);
+		} catch(IllegalArgumentException e) {
+			p = new Path(hdfs_directory.replaceFirst("s3", "s3a"));
+			status = p.getFileSystem(conf).listStatus(p);
+		}
 		
-		int count = 0;
+		List<Integer> top_100 = new ArrayList<>();
+		
 		for(FileStatus s : status) {
 			Path file_path = s.getPath();
-			FSDataInputStream fsDataInputStream = fs.open(file_path);
+			FSDataInputStream fsDataInputStream = p.getFileSystem(conf).open(file_path);
 			BufferedReader br = null;
 			
 			try {
@@ -275,13 +276,28 @@ public class WordCount {
 			    
 				String l = null;
 			    while((l = br.readLine())!= null){
-			    	count++;
-			    	if(count == 100) {
-			    		//Format: 100\tText
-			    		String[] values = l.split("\t");
-			    		String word_count = values[0];
-			    		return Integer.parseInt(word_count); // We found our answer
+			    	String[] values = l.split("\t");
+			    	String word_count = values[0];
+			    	int count = Integer.parseInt(word_count); // We found our answer
+			    	if(top_100.size() != 100) {
+			    		top_100.add(count); // Up until this point let's just add what we find directly to the top 100
+			    		if(top_100.size() == 100) {
+			    			Collections.sort(top_100); // Finally sort the current top 100 list
+			    		}
+			    	} else {
+			    		// The current smallest value in top 100
+			    		int smallest = top_100.get(0);
+			    		if(count > smallest) {
+			    			// We found a value that is larger than the smallest value in the top - it should be added and the previous smallest value removed
+			    			top_100.remove(0);
+			    			top_100.add(count);
+			    			Collections.sort(top_100); //Sort the list afterwards
+			    		} else {
+			    			// In this data set (which we know is pre-sorted), there cannot be any more entries that are larger than anything in the list
+			    			break;
+			    		}
 			    	}
+			    	
 			    }
 			} finally {
 				fsDataInputStream.close();
@@ -290,40 +306,16 @@ public class WordCount {
 				}
 			}
 		}
-		
-		
-		/*
-		FSDataInputStream fsDataInputStream = fs.open(new Path(hdfs_directory));
-		
-		//TODO: We have a directory, now we need to loop all files
-		
-		BufferedReader br = null;
-		
-		try {
-			br = new BufferedReader(new InputStreamReader(fsDataInputStream));
-		    
-			int count = 0;
-			
-			String l = null;
-		    while((l = br.readLine())!= null){
-		    	count++;
-		    	if(count == 100) {
-		    		//Format: 100\tText
-		    		String[] values = l.split("\t");
-		    		String word_count = values[0];
-		    		return Integer.parseInt(word_count); // We found our answer
-		    	}
-		    }
-		} finally {
-			fsDataInputStream.close();
-			if(br != null) {
-				br.close();
-			}
+
+		if(top_100.size() == 0) {
+			return 0;
 		}
-		*/
 		
-		return 0;
+		return top_100.get(0); //Get the smallest value that fit into the top 100 highest values
 	}
+	
+	//Use:
+	//s3://aaucloudcomputing20/fiwiki-latest-pages-articles_preprocessed.txt
 	
 	/**
 	 * 
@@ -336,52 +328,51 @@ public class WordCount {
 		String intermediary_output_2;
 		String final_output;
 		
+		// For saving time when debugging jobs - no need to run job 1, if problem is in job 2, etc.
+		boolean run_first_job = true;
+		boolean run_second_job = true;
+		
 		if(args.length == 2) {
 			input = args[0];
 			final_output = args[1];
-			intermediary_output_1 = final_output + "_temp1";
-			intermediary_output_2 = final_output + "_temp2";
+			intermediary_output_1 = final_output + "-1-temp";
+			intermediary_output_2 = final_output + "-2-temp";
 		} else {
 			input = args[1];
 			final_output = args[2];
-			intermediary_output_1 = final_output + "_temp1";
-			intermediary_output_2 = final_output + "_temp2";
+			intermediary_output_1 = final_output + "-1-temp";
+			intermediary_output_2 = final_output + "-2-temp";
 		}
-		
-		FileSystem fs = FileSystem.get(new Configuration());
-		fs.delete(new Path(intermediary_output_2), true); // Delete the intermediary output directory
-		fs.delete(new Path(intermediary_output_1), true); // Delete the intermediary output directory
-		fs.delete(new Path(final_output), true); 		// Clear the final output directory before adding data to it
 		
 		Configuration conf = new Configuration();
 		
 		// Let's first run a MapReduce job that just counts the words. Key: word, Value: count
-		Job word_count_job = createWordCountJob(conf, input, intermediary_output_1);
+		boolean first_job_ok = true;
 		
-		boolean first_job_ok = word_count_job.waitForCompletion(true);
+		if(run_first_job) {
+			Job word_count_job = createWordCountJob(conf, input, intermediary_output_1);
+			first_job_ok = word_count_job.waitForCompletion(true);
+		}
 		if(first_job_ok) {
 			
-			// Let's then run another job that sorts the values in descending order by their values
-			Job sort_by_value_job = createSortByValueJob(conf, intermediary_output_1, intermediary_output_2);
-			
-			boolean second_job_ok = sort_by_value_job.waitForCompletion(true);
+			boolean second_job_ok = true;
+			if(run_second_job) {
+				// Let's then run another job that sorts the values in descending order by their values
+				Job sort_by_value_job = createSortByValueJob(conf, intermediary_output_1, intermediary_output_2);
+				
+				second_job_ok = sort_by_value_job.waitForCompletion(true);
+			}
 			
 			if(second_job_ok == false) {
 				System.exit(1);
 			}
 			
-			fs.delete(new Path(intermediary_output_1), true); //Delete the intermediary output directory
-			
-			// Read intermediary output 2 and find the count limit.
-			
-			int limit = findLimit(fs, intermediary_output_2);
+			int limit = findLimit(conf, intermediary_output_2);
 			conf.set("limit", "" + limit);
 			
 			Job filter_top_100 = createFilterTop100(conf, intermediary_output_2, final_output);
 			
 			boolean filter_job_ok = filter_top_100.waitForCompletion(true);
-			
-			fs.delete(new Path(intermediary_output_2), true); //Delete the second intermediary output directory
 			
 			System.exit(filter_job_ok ? 0 : 1);
 		} else {
