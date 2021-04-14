@@ -30,11 +30,19 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class WordCount {
 
+	/**
+	 * Values coming into this are: 123\tFOOBAR
+	 * @author MiroEklund
+	 *
+	 */
 	public static class FilterTop100Mapper extends Mapper<Object, Text, IntWritable, Text>{
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 			String info = "";
 			try {
+				String limit = context.getConfiguration().get("limit");
+				int limit_count = Integer.parseInt(limit);
+				
 				String splitter = "\t";
 				if(value.toString().contains("\t")) {
 					// Ok
@@ -42,21 +50,20 @@ public class WordCount {
 					splitter = ",";
 				}
 				
+				info += "limit_count: " + limit_count + ", ";
 				info += "splitter: " + splitter + ", ";
 				
 				String[] text_count_pair = value.toString().split(splitter); //No idea what value we get here ...
 				
 				info += "size: " + text_count_pair.length + ", ";
 				
-				String text = text_count_pair[0];
-				int count = Integer.parseInt(text_count_pair[1].trim().strip());
+				String text = text_count_pair[1];
+				int count = Integer.parseInt(text_count_pair[0].trim().strip());
 				IntWritable i = new IntWritable(count);
 				Text t = new Text(text);
 				
 				info += "i: " + i + ", t: " + t.toString();
 				
-				String limit = context.getConfiguration().get("limit");
-				int limit_count = Integer.parseInt(limit);
 				if(i.get() >= limit_count) {
 					context.write(i, t);
 				}
@@ -72,6 +79,7 @@ public class WordCount {
 	}
 	
 	/**
+	 * Values coming into this are: FOOBAR\t123
 	 * Changes (text:count) -> (count:Iterator<Text>) from the point-of-view of the reducer
 	 * @author MiroEklund
 	 *
