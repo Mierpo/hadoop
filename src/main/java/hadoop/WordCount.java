@@ -86,7 +86,7 @@ public class WordCount {
 		job.setNumReduceTasks(1);
 		
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(Text.class);
+		job.setOutputValueClass(IntWritable.class);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
