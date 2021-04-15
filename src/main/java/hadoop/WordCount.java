@@ -43,10 +43,24 @@ public class WordCount {
 	public static class BytesMapper extends Mapper<Object, Text, Text, Text>{
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-			LineSplitter s = new LineSplitter(value.toString());
-			String msg = "1:" + s.bytes;
-			Text t = new Text(msg);
-			context.write(new Text("cost"), t);
+			String info = "";
+			LineSplitter s = null;
+			try {
+				info += "value: [" + value.toString() + "]";
+				
+				s = new LineSplitter(value.toString());
+				s.parse();
+				
+				String msg = "1:" + s.bytes;
+				Text t = new Text(msg);
+				context.write(new Text("cost"), t);
+			} catch(Throwable e) {
+				if(s != null) {
+					info += ", last_space: " + s.last_space;
+					info += ", substring: " + s.substring;
+				}
+				throw new IOException(info + e.getMessage());
+			}
 		}
 	}
 
