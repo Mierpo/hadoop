@@ -275,6 +275,7 @@ public class WordCount {
 		
 		job.setOutputKeyClass(IntWritable.class);
 		job.setOutputValueClass(Text.class);
+		job.setNumReduceTasks(1);
 		
 		FileInputFormat.addInputPath(job, new Path(input));
 		FileOutputFormat.setOutputPath(job, new Path(output));
