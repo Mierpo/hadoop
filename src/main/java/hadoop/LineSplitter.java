@@ -21,6 +21,7 @@ public class LineSplitter {
 		int l = subs.length;
 		if(l < 2) {
 			subnet = ip; //Just put the entire IP there
+			return;
 		}
 		
 		String last = subs[l - 1];
