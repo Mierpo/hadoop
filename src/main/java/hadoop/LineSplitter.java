@@ -1,12 +1,19 @@
 package main.java.hadoop;
 
+import java.util.StringTokenizer;
+
 public class LineSplitter {
 
 	public String subnet = null;
+	public String ip = null;
 	
 	public LineSplitter(String line) {
-		int f = line.indexOf(" ");
-		String ip = line.substring(0, f);
+		StringTokenizer itr = new StringTokenizer(line);
+		ip = itr.nextToken();
+	}
+
+	
+	public void parse() {
 		String[] subs = ip.split(".");
 		int l = subs.length;
 		String last = subs[l - 1];
@@ -19,6 +26,5 @@ public class LineSplitter {
 			subnet = second_to_last + "." + last;
 		}
 	}
-
 	
 }

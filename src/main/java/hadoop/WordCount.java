@@ -49,9 +49,13 @@ public class WordCount {
 				info += "value: [" + value.toString() + "]";
 				
 				s = new LineSplitter(value.toString());
+				s.parse();
 				
 				context.write(new Text(s.subnet), new IntWritable(1));
 			} catch(Throwable e) {
+				if(s != null) {
+					info += ", ip: [" + s.ip + "]";
+				}
 				throw new IOException(info + e.getMessage());
 			}
 		}
