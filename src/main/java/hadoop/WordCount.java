@@ -32,8 +32,48 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class WordCount {
 
-	private static final double price_per_request = 0.00001; //euros
-	private static final double price_per_gb_data = 0.0008; //euros
+	public static class FilterTop5Mapper extends Mapper<Object, Text, IntWritable, Text>{
+
+		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+			String info = "";
+			try {
+				String limit = context.getConfiguration().get("limit");
+				int limit_count = Integer.parseInt(limit);
+				
+				String splitter = "\t";
+				if(value.toString().contains("\t")) {
+					// Ok
+				} else {
+					splitter = ",";
+				}
+				
+				info += "limit_count: " + limit_count + ", ";
+				info += "splitter: " + splitter + ", ";
+				
+				String[] text_count_pair = value.toString().split(splitter); //No idea what value we get here ...
+				
+				info += "size: " + text_count_pair.length + ", ";
+				
+				String text = text_count_pair[1];
+				int count = Integer.parseInt(text_count_pair[0]);
+				IntWritable i = new IntWritable(count);
+				Text t = new Text(text);
+				
+				info += "i: " + i + ", t: " + t.toString();
+				
+				if(i.get() >= limit_count) {
+					context.write(i, t);
+				}
+				
+			} catch(ArrayIndexOutOfBoundsException e) {
+				throw new ArrayIndexOutOfBoundsException("[" + value.toString() + "] | " + info + " | " + e.toString());
+			} catch(java.io.IOException e) {
+				throw new IOException("[" + value + "] | " + info + " | " + e.toString());
+			} catch(Throwable e) {
+				throw new InterruptedException("[" + value + "] | " + info + " | " + e.toString());
+			}
+		}
+	}
 	
 	/**
 	 * 
@@ -164,6 +204,84 @@ public class WordCount {
 		return job;
 	}
 	
+	private static int findLimit(Configuration conf, String hdfs_directory) throws IllegalArgumentException, IOException {
+		FileStatus[] status = new FileStatus[0];
+		Path p;
+		try {
+			p = new Path(hdfs_directory);
+			status = p.getFileSystem(conf).listStatus(p);
+		} catch(IllegalArgumentException e) {
+			p = new Path(hdfs_directory.replaceFirst("s3", "s3a"));
+			status = p.getFileSystem(conf).listStatus(p);
+		}
+		
+		List<Integer> top_5 = new ArrayList<>();
+		
+		for(FileStatus s : status) {
+			Path file_path = s.getPath();
+			FSDataInputStream fsDataInputStream = p.getFileSystem(conf).open(file_path);
+			BufferedReader br = null;
+			
+			try {
+				br = new BufferedReader(new InputStreamReader(fsDataInputStream));
+			    
+				String l = null;
+			    while((l = br.readLine())!= null){
+			    	String[] values = l.split("\t");
+			    	String word_count = values[0];
+			    	int count = Integer.parseInt(word_count); // We found our answer
+			    	if(top_5.size() != 5) {
+			    		top_5.add(count); // Up until this point let's just add what we find directly to the top 100
+			    		if(top_5.size() == 5) {
+			    			Collections.sort(top_5); // Finally sort the current top 100 list
+			    		}
+			    	} else {
+			    		// The current smallest value in top 100
+			    		int smallest = top_5.get(0);
+			    		if(count > smallest) {
+			    			// We found a value that is larger than the smallest value in the top - it should be added and the previous smallest value removed
+			    			top_5.remove(0);
+			    			top_5.add(count);
+			    			Collections.sort(top_5); //Sort the list afterwards
+			    		} else {
+			    			// In this data set (which we know is pre-sorted), there cannot be any more entries that are larger than anything in the list
+			    			break;
+			    		}
+			    	}
+			    	
+			    }
+			} finally {
+				fsDataInputStream.close();
+				if(br != null) {
+					br.close();
+				}
+			}
+		}
+
+		if(top_5.size() == 0) {
+			return 0;
+		}
+		
+		return top_5.get(0); //Get the smallest value that fit into the top 100 highest values
+	}
+	
+	private static Job createFilterTop5(Configuration conf, String input, String output) throws IOException {
+		Job job = Job.getInstance(conf, "calculate ip count");
+		job.setJarByClass(WordCount.class);
+		job.setMapperClass(FilterTop5Mapper.class);
+		
+		// We should use a decreasing order, based on the count key
+		job.setSortComparatorClass(DecreasingComparator.class);
+		
+		job.setOutputKeyClass(IntWritable.class);
+		job.setOutputValueClass(Text.class);
+		
+		FileInputFormat.addInputPath(job, new Path(input));
+		FileOutputFormat.setOutputPath(job, new Path(output));
+		
+		return job;
+	}
+	
 	/**
 	 * 
 	 * @param args
@@ -212,18 +330,16 @@ public class WordCount {
 			
 			if(second_job_ok == false) {
 				System.exit(1);
-			} else {
-				System.exit(0);
 			}
+
+			int limit = findLimit(conf, intermediary_output_2);
+			conf.set("limit", "" + limit);
 			
-			//int limit = findLimit(conf, intermediary_output_2);
-			//conf.set("limit", "" + limit);
+			Job filter_top_5 = createFilterTop5(conf, intermediary_output_2, final_output);
 			
-			//Job filter_top_5 = createFilterTop5(conf, intermediary_output_2, final_output);
+			boolean filter_job_ok = filter_top_5.waitForCompletion(true);
 			
-			//boolean filter_job_ok = filter_top_5.waitForCompletion(true);
-			
-			//System.exit(filter_job_ok ? 0 : 1);
+			System.exit(filter_job_ok ? 0 : 1);
 		} else {
 			System.exit(1);
 		}
