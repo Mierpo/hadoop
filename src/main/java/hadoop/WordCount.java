@@ -51,7 +51,10 @@ public class WordCount {
 				s = new LineSplitter(value.toString());
 				s.parse();
 				
-				context.write(new Text(s.subnet), new IntWritable(1));
+				if(s.subnet != null) {
+					context.write(new Text(s.subnet), new IntWritable(1));
+				}
+				
 			} catch(Throwable e) {
 				if(s != null) {
 					info += ", ip: [" + s.ip + "]";
