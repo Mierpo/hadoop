@@ -40,7 +40,7 @@ public class WordCount {
 	 * @author MiroEklund
 	 *
 	 */
-	public static class BytesMapper extends Mapper<Object, Text, Text, Text>{
+	public static class BytesMapper extends Mapper<Object, Text, Text, IntWritable>{
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 			String info = "";
@@ -49,74 +49,26 @@ public class WordCount {
 				info += "value: [" + value.toString() + "]";
 				
 				s = new LineSplitter(value.toString());
-				s.parse();
 				
-				String msg = "1:" + s.bytes;
-				Text t = new Text(msg);
-				context.write(new Text("cost"), t);
+				context.write(new Text(s.subnet), new IntWritable(1));
 			} catch(Throwable e) {
-				if(s != null) {
-					info += ", last_space: " + s.last_space;
-					info += ", substring: " + s.substring;
-				}
 				throw new IOException(info + e.getMessage());
 			}
 		}
 	}
 
-	public static class PriceCombiner extends Reducer<Text,Text,Text,Text> {
+	public static class PriceReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
 
-		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-			int bytes_sum = 0;
-			int count_sum = 0;
-			for (Text val : values) {
-				String[] msg = val.toString().split(":");
-				int count = Integer.parseInt(msg[0]);
-				int bytes = Integer.parseInt(msg[1]);
-				bytes_sum += bytes;
-				count_sum += count;
-			}
-			Text result = new Text(count_sum + ":" + bytes_sum);
-			context.write(key, result);
-		}
-	}
-	
-	/**
-	 * 1: Total cost
-	 * 2: Total number of requests
-	 * 3: Total transfered data
-	 * @author MiroEklund
-	 *
-	 */
-	public static class PriceReducer extends Reducer<Text,Text,Text,Text> {
-
-		// The results of all requests should come to the same reducer at the end, so we have a singleton reducer
-		
-		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-			int total_bytes = 0;
-			int total_requests = 0;
-			for (Text val : values) {
-				String[] msg = val.toString().split(":");
-				int count = Integer.parseInt(msg[0]);
-				int bytes = Integer.parseInt(msg[1]);
-				total_bytes += bytes;
-				total_requests += count;
+		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+			int sum = 0;
+			for (IntWritable val : values) {
+				sum += val.get();
 			}
 			
-			int kilobytes = total_bytes / 1024;
-			int megabytes = kilobytes / 1024;
-			
-			double price_per_mb = price_per_gb_data / 1024.0;
-			double cost = 0.0;
-			cost += price_per_request * total_requests;
-			cost += price_per_mb * megabytes;
-			
-			context.write(new Text("requests"), new Text("" + total_requests));
-			context.write(new Text("data"), new Text(megabytes + " MB"));
-			context.write(new Text("cost"), new Text(cost + " €"));
+			context.write(key, new IntWritable(sum));
 		}
 	}
-	
+
 	/**
 	 * 
 	 * @param conf
@@ -129,7 +81,7 @@ public class WordCount {
 		Job job = Job.getInstance(conf, "calculate cdn");
 		job.setJarByClass(WordCount.class);
 		job.setMapperClass(BytesMapper.class);
-		job.setCombinerClass(PriceCombiner.class);
+		job.setCombinerClass(PriceReducer.class);
 		job.setReducerClass(PriceReducer.class);
 		job.setNumReduceTasks(1);
 		

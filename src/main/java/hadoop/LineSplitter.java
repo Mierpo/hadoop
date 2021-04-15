@@ -2,21 +2,23 @@ package main.java.hadoop;
 
 public class LineSplitter {
 
-	public int bytes = 0;
-	public int last_space = -1;
-	public String substring = "";
+	public String subnet = null;
 	
 	public LineSplitter(String line) {
-		last_space = line.lastIndexOf(" ");
-		substring = line.substring(last_space + 1);
-	}
-	
-	public void parse() {
+		int f = line.indexOf(" ");
+		String ip = line.substring(0, f);
+		String[] subs = ip.split(".");
+		int l = subs.length;
+		String last = subs[l - 1];
+		
 		try {
-			bytes = Integer.parseInt(substring);
+			Integer.parseInt(last);
+			subnet = null;
 		} catch(NumberFormatException e) {
-			bytes = 0;
+			String second_to_last = subs[l - 2];
+			subnet = second_to_last + "." + last;
 		}
 	}
+
 	
 }
