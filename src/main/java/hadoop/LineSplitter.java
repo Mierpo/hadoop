@@ -19,6 +19,10 @@ public class LineSplitter {
 	public void parse() {
 		String[] subs = ip.split("\\.");
 		int l = subs.length;
+		if(l < 2) {
+			subnet = ip; //Just put the entire IP there
+		}
+		
 		String last = subs[l - 1];
 		
 		try {
