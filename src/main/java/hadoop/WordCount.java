@@ -32,44 +32,74 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class WordCount {
 
+	private static final double price_per_request = 0.00001; //euros
+	private static final double price_per_gb_data = 0.0008; //euros
+	
 	/**
 	 * 
 	 * @author MiroEklund
 	 *
 	 */
-	public static class WordLength3or5Mapper extends Mapper<Object, Text, Text, IntWritable>{
+	public static class BytesMapper extends Mapper<Object, Text, Text, Text>{
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-			StringTokenizer itr = new StringTokenizer(value.toString());
-			while (itr.hasMoreTokens()) {
-				String v = itr.nextToken();
-				if(v.length() == 3) {
-					context.write(new Text("length_five"), new IntWritable(1)); //Only add an occurence for the words that have 3 or 5 length
-				} else if(v.length() == 5) {
-					context.write(new Text("length_three"), new IntWritable(1)); //Only add an occurence for the words that have 3 or 5 length
-				}
-			}
+			LineSplitter s = new LineSplitter(value.toString());
+			String msg = "1:" + s.bytes;
+			Text t = new Text(msg);
+			context.write(new Text("cost"), t);
 		}
 	}
 
+	public static class PriceCombiner extends Reducer<Text,Text,Text,Text> {
+
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+			int bytes_sum = 0;
+			int count_sum = 0;
+			for (Text val : values) {
+				String[] msg = val.toString().split(":");
+				int count = Integer.parseInt(msg[0]);
+				int bytes = Integer.parseInt(msg[1]);
+				bytes_sum += bytes;
+				count_sum += count;
+			}
+			Text result = new Text(count_sum + ":" + bytes_sum);
+			context.write(key, result);
+		}
+	}
+	
 	/**
-	 * 
+	 * 1: Total cost
+	 * 2: Total number of requests
+	 * 3: Total transfered data
 	 * @author MiroEklund
 	 *
 	 */
-	public static class WordLength3or5Reducer extends Reducer<Text,IntWritable,Text,IntWritable> {
-		
-		private IntWritable result = new IntWritable();
+	public static class PriceReducer extends Reducer<Text,Text,Text,Text> {
 
-		// Gets two keys: length_five and length_three.
+		// The results of all requests should come to the same reducer at the end, so we have a singleton reducer
 		
-		public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-			int sum = 0;
-			for (IntWritable val : values) {
-				sum += val.get();
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+			int total_bytes = 0;
+			int total_requests = 0;
+			for (Text val : values) {
+				String[] msg = val.toString().split(":");
+				int count = Integer.parseInt(msg[0]);
+				int bytes = Integer.parseInt(msg[1]);
+				total_bytes += bytes;
+				total_requests += count;
 			}
-			result.set(sum);
-			context.write(key, result);
+			
+			int kilobytes = total_bytes / 1024;
+			int megabytes = kilobytes / 1024;
+			
+			double price_per_mb = price_per_gb_data / 1024.0;
+			double cost = 0.0;
+			cost += price_per_request * total_requests;
+			cost += price_per_mb * megabytes;
+			
+			context.write(new Text("requests"), new Text("" + total_requests));
+			context.write(new Text("data"), new Text(megabytes + " MB"));
+			context.write(new Text("cost"), new Text(cost + " €"));
 		}
 	}
 	
@@ -82,11 +112,12 @@ public class WordCount {
 	 * @throws IOException
 	 */
 	private static Job createWordCountJob(Configuration conf, String input, String output) throws IOException {
-		Job job = Job.getInstance(conf, "calculate word count");
+		Job job = Job.getInstance(conf, "calculate cdn");
 		job.setJarByClass(WordCount.class);
-		job.setMapperClass(WordLength3or5Mapper.class);
-		job.setReducerClass(WordLength3or5Reducer.class);
-		job.setCombinerClass(WordLength3or5Reducer.class); //This is the only line that changed between "Application 1 and 2"
+		job.setMapperClass(BytesMapper.class);
+		job.setCombinerClass(PriceCombiner.class);
+		job.setReducerClass(PriceReducer.class);
+		job.setNumReduceTasks(1);
 		
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
@@ -97,9 +128,6 @@ public class WordCount {
 		return job;
 	}
 	
-	//Use:
-	//s3://aaucloudcomputing20/fiwiki-latest-pages-articles_preprocessed.txt
-	
 	/**
 	 * 
 	 * @param args
@@ -107,35 +135,21 @@ public class WordCount {
 	 */
 	public static void main(String[] args) throws Exception {
 		String input;
-		String intermediary_output_1;
-		String intermediary_output_2;
 		String final_output;
-		
-		// For saving time when debugging jobs - no need to run job 1, if problem is in job 2, etc.
-		boolean run_first_job = true;
-		boolean run_second_job = true;
 		
 		if(args.length == 2) {
 			input = args[0];
 			final_output = args[1];
-			intermediary_output_1 = final_output + "-1-temp";
-			intermediary_output_2 = final_output + "-2-temp";
 		} else {
 			input = args[1];
 			final_output = args[2];
-			intermediary_output_1 = final_output + "-1-temp";
-			intermediary_output_2 = final_output + "-2-temp";
 		}
 		
 		Configuration conf = new Configuration();
 		
-		// Let's first run a MapReduce job that just counts the words. Key: word, Value: count
-		boolean first_job_ok = true;
+		Job word_count_job = createWordCountJob(conf, input, final_output);
+		boolean first_job_ok = word_count_job.waitForCompletion(true);
 		
-		if(run_first_job) {
-			Job word_count_job = createWordCountJob(conf, input, intermediary_output_1);
-			first_job_ok = word_count_job.waitForCompletion(true);
-		}
 		if(first_job_ok) {
 			System.exit(0);
 		} else {
